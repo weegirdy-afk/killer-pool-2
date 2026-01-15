@@ -25,10 +25,7 @@
     border: none;
   }
 
-  button {
-    font-weight: bold;
-    cursor: pointer;
-  }
+  button { font-weight: bold; cursor: pointer; }
 
   .secondary { background: #3498db; }
   .play { background: #2ecc71; }
@@ -44,20 +41,10 @@
     animation: deal 0.5s ease forwards;
   }
 
-  @keyframes deal {
-    to { opacity: 1; transform: translateY(0); }
-  }
+  @keyframes deal { to { opacity: 1; transform: translateY(0); } }
 
-  .cardBig {
-    display: inline-block;
-    font-size: 56px;
-    margin: 10px 0 2px;
-  }
-
-  .nameBig {
-    font-size: 28px;
-    margin: 6px 0 10px;
-  }
+  .cardBig { display: inline-block; font-size: 56px; margin: 10px 0 2px; }
+  .nameBig { font-size: 28px; margin: 6px 0 10px; }
 
   #log {
     margin-top: 14px;
@@ -66,14 +53,66 @@
     min-height: 22px;
   }
 
-  .section {
+  .section { max-width: 520px; margin: 0 auto; }
+
+  /* Ref button + overlay */
+  #refBtn {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    padding: 10px 12px;
+    border-radius: 999px;
+    font-size: 16px;
+    background: #444;
+    color: #fff;
+    z-index: 1000;
+    display: none; /* only show during game */
+  }
+
+  #refOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.95);
+    color: #fff;
+    padding: 18px;
+    overflow: auto;
+    z-index: 2000;
+    text-align: center;
+  }
+
+  #refPanel {
     max-width: 520px;
     margin: 0 auto;
   }
+
+  #refList {
+    text-align: left;
+    margin: 14px auto;
+    max-width: 420px;
+    font-size: 18px;
+    line-height: 1.7;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #222;
+    margin-left: 8px;
+    font-size: 14px;
+    opacity: 0.95;
+  }
+
+  .muted { opacity: 0.75; }
 </style>
 </head>
 
 <body>
+  <button id="refBtn" onclick="toggleRef()">🧑‍⚖️ Ref</button>
+
   <div class="section">
     <h1>🎱 Killer Pool</h1>
 
@@ -104,11 +143,20 @@
     </div>
   </div>
 
-<script>
-  // 13-card deck (values only)
-  const baseDeck = ["A","K","Q","J","10","9","8","7","6","5","4","3","2"];
+  <!-- REF OVERLAY (Option 2) -->
+  <div id="refOverlay" onclick="toggleRef()">
+    <div id="refPanel" onclick="event.stopPropagation()">
+      <h2>🧑‍⚖️ Ref Mode</h2>
+      <div class="muted">Tap outside (or the Ref button) to close.</div>
+      <div id="refList"></div>
+      <button onclick="toggleRef()">Close</button>
+    </div>
+  </div>
 
+<script>
+  const baseDeck = ["A","K","Q","J","10","9","8","7","6","5","4","3","2"];
   let deck = [];
+
   let players = [];        // { name, card, lives }
   let activePlayers = [];  // indices into players[]
   let currentIdx = null;   // index into players[] of current shooter
@@ -133,7 +181,6 @@
   }
 
   function drawCards() {
-    // Reset state
     players = [];
     activePlayers = [];
     currentIdx = null;
@@ -158,17 +205,14 @@
       return;
     }
 
-    // Deal with animation (one-by-one)
     let delay = 0;
 
     names.forEach((name) => {
-      if (deck.length === 0) {
-        // If somehow needed again later, reshuffle and continue
-        shuffleDeck();
-      }
-
+      if (deck.length === 0) shuffleDeck();
       const card = deck.pop();
-      players.push({ name, card, lives: 1 });
+
+      // Everyone starts with 3 lives (hidden from players)
+      players.push({ name, card, lives: 3 });
 
       setTimeout(() => {
         const div = document.createElement("div");
@@ -180,7 +224,6 @@
       delay += 350;
     });
 
-    // Show Start button when dealing is basically done
     setTimeout(() => {
       document.getElementById("startBtn").style.display = "inline-block";
     }, delay + 150);
@@ -189,12 +232,13 @@
   function startGame() {
     if (players.length === 0) return;
 
-    // Active players are all players initially
     activePlayers = players.map((_, i) => i);
 
-    // Hide setup, show game
     document.getElementById("setup").style.display = "none";
     document.getElementById("game").style.display = "block";
+
+    // show Ref button only in game
+    document.getElementById("refBtn").style.display = "inline-block";
 
     nextShooter("Game started. Random shooter selected.");
   }
@@ -204,18 +248,18 @@
       document.getElementById("currentCard").textContent = "";
       document.getElementById("currentName").textContent = "Game Over";
       setLog("No players left.");
+      refreshRefList();
       return;
     }
 
-    // Pick random shooter from active players
     const pick = Math.floor(Math.random() * activePlayers.length);
     currentIdx = activePlayers[pick];
 
-    // Display
     document.getElementById("currentCard").textContent = players[currentIdx].card;
     document.getElementById("currentName").textContent = players[currentIdx].name;
 
     setLog(message || "Next shooter.");
+    refreshRefList();
   }
 
   function setLog(text) {
@@ -231,18 +275,17 @@
       p.lives -= 1;
 
       if (p.lives <= 0) {
-        // Remove from active players
         activePlayers = activePlayers.filter(i => i !== currentIdx);
         nextShooter(`${p.name} MISSED and is OUT.`);
         return;
       }
 
-      nextShooter(`${p.name} MISSED.`);
+      nextShooter(`${p.name} MISSED and loses a life.`);
       return;
     }
 
     if (type === "pot") {
-      nextShooter(`${p.name} POTTED. (Life stays the same)`);
+      nextShooter(`${p.name} POTTED. (No life lost)`);
       return;
     }
 
@@ -251,6 +294,35 @@
       nextShooter(`${p.name} potted the BLACK BALL and gains a life.`);
       return;
     }
+  }
+
+  // ---- REF MODE (Option 2) ----
+  function toggleRef() {
+    const overlay = document.getElementById("refOverlay");
+    const nowOpen = overlay.style.display !== "block";
+    if (nowOpen) {
+      refreshRefList();
+      overlay.style.display = "block";
+    } else {
+      overlay.style.display = "none";
+    }
+  }
+
+  function refreshRefList() {
+    const refList = document.getElementById("refList");
+    if (!refList) return;
+
+    const activeSet = new Set(activePlayers);
+
+    // Show in original order, but mark OUT players
+    const lines = players.map((p, i) => {
+      const status = activeSet.has(i) ? "IN" : "OUT";
+      const statusPill = `<span class="pill">${status}</span>`;
+      const currentPill = (i === currentIdx && activeSet.has(i)) ? `<span class="pill">SHOOTER</span>` : "";
+      return `${p.name} — ${p.card} — ${p.lives} lives ${statusPill} ${currentPill}`;
+    });
+
+    refList.innerHTML = lines.join("<br>");
   }
 
   // Start with two inputs
