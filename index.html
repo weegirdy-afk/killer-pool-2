@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Killer Pool</title>
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #111;
+    color: #fff;
+    text-align: center;
+    padding: 16px;
+    margin: 0;
+  }
+
+  input, button {
+    width: 90%;
+    max-width: 280px;
+    padding: 12px;
+    margin: 6px 0;
+    font-size: 18px;
+    border-radius: 8px;
+    border: none;
+  }
+
+  button {
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .secondary { background: #3498db; }
+  .play { background: #2ecc71; }
+  .miss { background: #e67e22; }
+  .pot { background: #1abc9c; }
+  .black { background: #e74c3c; color: #fff; }
+
+  .player {
+    margin: 10px 0;
+    font-size: 22px;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: deal 0.5s ease forwards;
+  }
+
+  @keyframes deal {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .cardBig {
+    display: inline-block;
+    font-size: 56px;
+    margin: 10px 0 2px;
+  }
+
+  .nameBig {
+    font-size: 28px;
+    margin: 6px 0 10px;
+  }
+
+  #log {
+    margin-top: 14px;
+    font-size: 16px;
+    opacity: 0.9;
+    min-height: 22px;
+  }
+
+  .section {
+    max-width: 520px;
+    margin: 0 auto;
+  }
+</style>
+</head>
+
+<body>
+  <div class="section">
+    <h1>🎱 Killer Pool</h1>
+
+    <!-- SETUP -->
+    <div id="setup">
+      <div id="playerList"></div>
+
+      <button class="secondary" onclick="addPlayer()">➕ Add Player</button>
+      <button onclick="drawCards()">🎴 Draw Cards</button>
+
+      <div id="results"></div>
+
+      <button id="startBtn" class="play" onclick="startGame()" style="display:none;">
+        ▶️ Play Game
+      </button>
+    </div>
+
+    <!-- GAME -->
+    <div id="game" style="display:none;">
+      <div id="currentCard" class="cardBig"></div>
+      <div id="currentName" class="nameBig"></div>
+
+      <button class="miss" onclick="doAction('miss')">❌ Miss</button>
+      <button class="pot" onclick="doAction('pot')">🎯 Pot</button>
+      <button class="black" onclick="doAction('black')">⚫ Black Ball</button>
+
+      <div id="log"></div>
+    </div>
+  </div>
+
+<script>
+  // 13-card deck (values only)
+  const baseDeck = ["A","K","Q","J","10","9","8","7","6","5","4","3","2"];
+
+  let deck = [];
+  let players = [];        // { name, card, lives }
+  let activePlayers = [];  // indices into players[]
+  let currentIdx = null;   // index into players[] of current shooter
+
+  function shuffleDeck() {
+    deck = [...baseDeck];
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+  }
+
+  function addPlayer() {
+    const count = document.querySelectorAll("#playerList input").length;
+    if (count >= 13) {
+      alert("Maximum 13 players (A–2).");
+      return;
+    }
+    const input = document.createElement("input");
+    input.placeholder = "Player name";
+    document.getElementById("playerList").appendChild(input);
+  }
+
+  function drawCards() {
+    // Reset state
+    players = [];
+    activePlayers = [];
+    currentIdx = null;
+
+    shuffleDeck();
+
+    const results = document.getElementById("results");
+    results.innerHTML = "<h2>Dealing Cards…</h2>";
+
+    const inputs = [...document.querySelectorAll("#playerList input")];
+    const names = inputs.map(i => i.value.trim()).filter(Boolean);
+
+    if (names.length === 0) {
+      results.innerHTML = "<h2>Please enter at least 1 name.</h2>";
+      document.getElementById("startBtn").style.display = "none";
+      return;
+    }
+
+    if (names.length > 13) {
+      results.innerHTML = "<h2>Max 13 players.</h2>";
+      document.getElementById("startBtn").style.display = "none";
+      return;
+    }
+
+    // Deal with animation (one-by-one)
+    let delay = 0;
+
+    names.forEach((name) => {
+      if (deck.length === 0) {
+        // If somehow needed again later, reshuffle and continue
+        shuffleDeck();
+      }
+
+      const card = deck.pop();
+      players.push({ name, card, lives: 1 });
+
+      setTimeout(() => {
+        const div = document.createElement("div");
+        div.className = "player";
+        div.textContent = `${name} — ${card}`;
+        results.appendChild(div);
+      }, delay);
+
+      delay += 350;
+    });
+
+    // Show Start button when dealing is basically done
+    setTimeout(() => {
+      document.getElementById("startBtn").style.display = "inline-block";
+    }, delay + 150);
+  }
+
+  function startGame() {
+    if (players.length === 0) return;
+
+    // Active players are all players initially
+    activePlayers = players.map((_, i) => i);
+
+    // Hide setup, show game
+    document.getElementById("setup").style.display = "none";
+    document.getElementById("game").style.display = "block";
+
+    nextShooter("Game started. Random shooter selected.");
+  }
+
+  function nextShooter(message) {
+    if (activePlayers.length === 0) {
+      document.getElementById("currentCard").textContent = "";
+      document.getElementById("currentName").textContent = "Game Over";
+      setLog("No players left.");
+      return;
+    }
+
+    // Pick random shooter from active players
+    const pick = Math.floor(Math.random() * activePlayers.length);
+    currentIdx = activePlayers[pick];
+
+    // Display
+    document.getElementById("currentCard").textContent = players[currentIdx].card;
+    document.getElementById("currentName").textContent = players[currentIdx].name;
+
+    setLog(message || "Next shooter.");
+  }
+
+  function setLog(text) {
+    document.getElementById("log").textContent = text;
+  }
+
+  function doAction(type) {
+    if (currentIdx === null) return;
+
+    const p = players[currentIdx];
+
+    if (type === "miss") {
+      p.lives -= 1;
+
+      if (p.lives <= 0) {
+        // Remove from active players
+        activePlayers = activePlayers.filter(i => i !== currentIdx);
+        nextShooter(`${p.name} MISSED and is OUT.`);
+        return;
+      }
+
+      nextShooter(`${p.name} MISSED.`);
+      return;
+    }
+
+    if (type === "pot") {
+      nextShooter(`${p.name} POTTED. (Life stays the same)`);
+      return;
+    }
+
+    if (type === "black") {
+      p.lives += 1;
+      nextShooter(`${p.name} potted the BLACK BALL and gains a life.`);
+      return;
+    }
+  }
+
+  // Start with two inputs
+  addPlayer();
+  addPlayer();
+</script>
+</body>
+</html>
